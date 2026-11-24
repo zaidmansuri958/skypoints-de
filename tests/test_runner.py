@@ -343,3 +343,81 @@ def test_parity_loads_the_golden_files_and_returns_differences():
         r"^INSERT INTO PARITY_STG_EXPECTED") < log.first(r"^SELECT 'staging_only_in_expected'")
     ins = "\n".join(s for s in log.sql() if s.startswith("INSERT INTO PARITY_STG_EXPECTED"))
     assert "'GLOBAL|2256'" in ins and "'AUS|2'" not in ins        # the quarantined row is not expected
+
+
+# ------------------------------------------------------------------ connection setup
+
+def _fake_connector(monkeypatch):
+    import sys
+    import types
+    seen = {"kwargs": [], "sql": []}
+
+    class Cur:
+        def execute(self, sql): seen["sql"].append(sql)
+        def fetchall(self): return []
+        def close(self): pass
+
+    class Conn:
+        def cursor(self): return Cur()
+        def close(self): pass
+
+    mod = types.ModuleType("snowflake.connector")
+    mod.connect = lambda **kw: seen["kwargs"].append(kw) or Conn()
+    pkg = types.ModuleType("snowflake")
+    pkg.connector = mod
+    monkeypatch.setitem(sys.modules, "snowflake", pkg)
+    monkeypatch.setitem(sys.modules, "snowflake.connector", mod)
+    monkeypatch.setenv("SNOWFLAKE_ACCOUNT", "org-acct")
+    monkeypatch.setenv("SNOWFLAKE_USER", "me")
+    monkeypatch.setenv("SNOWFLAKE_PASSWORD", "pw")
+    monkeypatch.delenv("SNOWFLAKE_AUTHENTICATOR", raising=False)
+    monkeypatch.delenv("SNOWFLAKE_ROLE", raising=False)
+    return seen
+
+
+def test_first_connection_does_not_ask_for_objects_that_do_not_exist_yet(monkeypatch):
+    from skypoints.snowflake_runner import connect_from_env
+    seen = _fake_connector(monkeypatch)
+    connect_from_env()
+    kw = seen["kwargs"][0]
+    assert not {"database", "schema", "warehouse"} & set(kw)
+    assert kw["account"] == "org-acct" and kw["user"] == "me" and kw["password"] == "pw"
+
+
+def test_role_and_browser_login_are_passed_through(monkeypatch):
+    from skypoints.snowflake_runner import connect_from_env
+    seen = _fake_connector(monkeypatch)
+    monkeypatch.setenv("SNOWFLAKE_ROLE", "ACCOUNTADMIN")
+    monkeypatch.setenv("SNOWFLAKE_AUTHENTICATOR", "externalbrowser")
+    connect_from_env()
+    kw = seen["kwargs"][0]
+    assert kw["role"] == "ACCOUNTADMIN" and kw["authenticator"] == "externalbrowser" and "password" not in kw
+
+
+def test_parallel_sessions_select_the_warehouse_themselves(monkeypatch):
+    from skypoints.snowflake_runner import connect_session
+    seen = _fake_connector(monkeypatch)
+    connect_session()
+    assert seen["sql"] == ["USE WAREHOUSE SKYPOINTS_WH"]
+
+
+def test_missing_credentials_give_a_clear_message(monkeypatch):
+    from skypoints.snowflake_runner import connect_from_env
+    _fake_connector(monkeypatch)
+    monkeypatch.delenv("SNOWFLAKE_USER")
+    with pytest.raises(SystemExit, match="SNOWFLAKE_USER"):
+        connect_from_env()
+
+
+# ------------------------------------------------------------------ the first real Snowflake run found this
+
+class RealisticFake(Fake):
+    """Like Snowflake: a non-query statement (USE, DDL) answers with a status row, not nothing."""
+
+    def execute(self, sql):
+        rows = super().execute(sql)
+        if not rows and re.match(r"\s*(USE|CREATE|INSERT|MERGE|DELETE|UPDATE|ALTER|DROP)\b", sql, re.I):
+            return [("Statement executed successfully.",)]
+        return rows
+
+

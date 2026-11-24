@@ -388,8 +388,7 @@ def connect_from_env() -> ConnectorExecutor:
     # No database/schema/warehouse here on purpose: on the very first run they do not exist yet,
     # and asking for a missing database at connect time can fail the connection. Every SQL file
     # starts with USE SCHEMA SKYPOINTS.CORE, and 00_setup.sql selects the warehouse it creates.
-    kwargs = dict(account=os.environ["SNOWFLAKE_ACCOUNT"], user=os.environ["SNOWFLAKE_USER"],
-                  database="SKYPOINTS", schema="CORE", warehouse="SKYPOINTS_WH")
+    kwargs = dict(account=os.environ["SNOWFLAKE_ACCOUNT"], user=os.environ["SNOWFLAKE_USER"])
     if os.environ.get("SNOWFLAKE_ROLE"):
         kwargs["role"] = os.environ["SNOWFLAKE_ROLE"]
     if os.environ.get("SNOWFLAKE_AUTHENTICATOR"):        # e.g. externalbrowser (needs SSO configured)
@@ -405,7 +404,9 @@ WAREHOUSE = "SKYPOINTS_WH"      # created by sql/00_setup.sql
 def connect_session() -> ConnectorExecutor:
     """An extra session for a parallel merge. It must select the warehouse itself: a new
     session has none unless the user happens to have a default one."""
-    return connect_from_env()
+    ex = connect_from_env()
+    ex.execute(f"USE WAREHOUSE {WAREHOUSE}")
+    return ex
 
 
 def _bootstrap_runner() -> SnowflakeRunner:
