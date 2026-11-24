@@ -1,0 +1,14 @@
+source_file,source_row,member_key,member_name,enrollment_date,last_flight_date,dob,tier_code,state,country_code,post_code,is_active,member_type,age,stale_member
+AUS.xlsx,1,AUS|1,Mike,2022-05-11,2022-08-01,,PLT,,AUS,,,,,true
+AUS.xlsx,3,AUS|3,Cristina,2022-03-12,2022-03-20,1998-03-12,SLV,,AUS,,,,28,true
+GLOBAL_20240115.txt,1,GLOBAL|223457,Elena,2010-10-12,2012-10-13,1985-05-03,GLD,CA,USA,,A,,41,true
+GLOBAL_20240115.txt,2,GLOBAL|223458,Ravi,2010-10-12,2012-10-13,1985-05-03,SLV,TN,IND,,A,,41,true
+GLOBAL_20240115.txt,3,GLOBAL|223459,Mateo,2010-10-12,2012-10-13,1985-05-03,GLD,NCR,PHL,,A,,41,true
+GLOBAL_20240115.txt,4,GLOBAL|22345,Nora,2010-10-12,2012-10-13,1985-05-03,PLT,ONT,CAN,,A,,41,true
+GLOBAL_20240115.txt,5,GLOBAL|2256,Jacob,2010-10-12,2012-10-13,1985-05-03,SLV,VIC,AUS,,A,,41,true
+IND.csv,1,IND|1,Vikas,2022-01-01,2022-06-15,1998-12-01,SLV,,IND,,,I,27,true
+IND.csv,2,IND|2,Rahul,2022-03-05,2022-03-10,1982-08-13,GLD,,IND,,,C,44,true
+IND.csv,3,IND|3,Sameer,2022-02-20,2022-02-25,1952-08-13,GLD,,IND,,,I,74,true
+USA.csv,1,USA|1,Sam,2022-06-15,2022-08-20,,PLT,,USA,,,,,true
+USA.csv,2,USA|2,John,2022-01-05,2022-01-15,,SLV,,USA,,,,,true
+USA.csv,3,USA|3,Mike,2021-12-28,2021-12-30,,GLD,,USA,,,,,true
