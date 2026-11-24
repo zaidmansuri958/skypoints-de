@@ -442,3 +442,24 @@ class RealisticFake(Fake):
         return rows
 
 
+def test_status_rows_from_use_statements_are_not_reconcile_violations(tmp_path):
+    log = Log()
+    main = RealisticFake(log, {**GOOD}, "main")
+    r = SnowflakeRunner(main, log=lambda m: None)
+    rep = r.load(members(), [], GOLDEN_AS_OF, max_error_rate=0.10, load_id="L1", workdir=tmp_path)
+    assert [s for s, st, _ in rep.steps if s == "reconcile"] == ["reconcile"]
+    assert rep.steps[-1][:2] == ("reconcile", "OK")
+
+
+def test_a_real_violation_is_still_caught_with_status_rows_present(tmp_path):
+    log = Log()
+    bad = {**GOOD, r"^SELECT 'row_without_index'": [("row_without_index", "GLOBAL|1", "MEMBER_USA")]}
+    r = SnowflakeRunner(RealisticFake(log, bad, "main"), log=lambda m: None)
+    with pytest.raises(ReconciliationFailed, match="row_without_index"):
+        r.load(members(), [], GOLDEN_AS_OF, max_error_rate=0.10, load_id="L1", workdir=tmp_path)
+
+
+def test_parity_ignores_status_rows():
+    log = Log()
+    r = SnowflakeRunner(RealisticFake(log, {}, "main"), log=lambda m: None)
+    assert r.parity("L1", GOLDEN) == []

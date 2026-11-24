@@ -94,7 +94,9 @@ class SnowflakeRunner:
         earlier version counted as a violation."""
         out = []
         for stmt in statements(name, variables, self.sql_dir):
-            out.append(self.main.execute(stmt))
+            rows = self.main.execute(stmt)
+            if stmt.lstrip().upper().startswith(("SELECT", "WITH", "(")):
+                out.append(rows)
         return out
 
     def _step(self, report: LoadReport, step: str, status: str, detail: str = "") -> None:
