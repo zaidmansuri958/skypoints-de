@@ -1,0 +1,4 @@
+openpyxl>=3.1            # reads the AUS .xlsx source
+pytest>=8.0              # test suite
+snowflake-connector-python>=3.12   # only needed for the Snowflake runner (deploy / load / demo)
+sqlglot>=25.0            # optional: parses every SQL file with the Snowflake dialect in the test suite
