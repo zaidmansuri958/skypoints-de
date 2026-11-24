@@ -1,0 +1,25 @@
+%%{init: {"theme":"base","themeVariables":{"fontSize":"16px","primaryColor":"#e8f1fb","primaryBorderColor":"#5b8fc7","lineColor":"#555","clusterBkg":"#f7f7f7","clusterBorder":"#bbb"}}}%%
+flowchart LR
+  CT[("Per-country tables<br/>+ MEMBER_INDEX<br/>(from the load)")]
+  subgraph M["Maintenance"]
+    direction LR
+    SN["<b>Snapshot soft-delete</b><br/>full-extract feeds only<br/>20% drop guard"]
+    DR["<b>Derived refresh</b><br/>age + stale_member<br/>via watermark"]
+  end
+  subgraph I["Identity matching"]
+    direction LR
+    MC["<b>V_MEMBER_MATCH_CANDIDATES</b><br/>proposals only"] --> XR["<b>MEMBER_XREF</b><br/>a human confirms"]
+  end
+  subgraph R["Redemptions"]
+    direction LR
+    RJ["<b>Redemptions JSON</b>"] --> RR["<b>RAW_REDEMPTION_FEED</b><br/>VARIANT"] --> RF["<b>REDEMPTION_FACT</b><br/>member_key stored,<br/>orphans re-linked"] --> RW["<b>REDEMPTION_WITH_MEMBER</b><br/>current country live"]
+  end
+  subgraph V["Verification (offline)"]
+    direction LR
+    PY["Python reference"] --> GF["Golden files"] --> PD["Parity diff vs<br/>Snowflake staging"]
+  end
+  CT --> SN
+  CT --> DR
+  CT --> MC
+  CT --> RW
+  RR ~~~ PY

@@ -1,0 +1,34 @@
+%%{init: {"theme":"base","themeVariables":{"fontSize":"16px","primaryColor":"#e8f1fb","primaryBorderColor":"#5b8fc7","lineColor":"#555"}}}%%
+flowchart TB
+  SRC["<b>Sources</b><br/>IND.csv · USA.csv · AUS.xlsx · GLOBAL (pipe-delimited)"]
+  EDGE["<b>Edge converter (Python)</b><br/>one canonical CSV, then PUT + COPY"]
+  RAW["<b>RAW_MEMBER_FILE</b><br/>all VARCHAR, never rejects"]
+  VAL["<b>Parse + validate</b><br/>one shared parsing view"]
+  REJ["<b>STG_REJECT</b><br/>ERROR = row excluded<br/>WARNING = row kept"]
+  GATE{"Error rate<br/>above 2%?"}
+  STOP["<b>Batch stopped</b><br/>nothing staged (exit 2)"]
+  STG["<b>STG_MEMBER</b><br/>typed, age, stale_member"]
+  APPLY["<b>STG_APPLY</b><br/>latest record per member_key wins<br/>member_key = source_system|member_id"]
+  P1["<b>Phase 1</b>: delete moved members<br/>from their old country table"]
+  P2["<b>Phase 2</b>: MERGE into the new country table<br/>(parallel sessions)"]
+  CT["<b>MEMBER_IND / USA / AUS / CAN / PHL</b><br/>+ MEMBER_ALL view"]
+  IDX["<b>MEMBER_INDEX</b><br/>member to current country"]
+  HIST["<b>MEMBER_HISTORY</b> (SCD2)<br/>V_MEMBER_MOVES derived from it"]
+  REC["<b>RECONCILE</b><br/>index = tables = history<br/>fails the load if not (exit 3)"]
+  LOG["<b>PIPELINE_RUN_LOG</b>"]
+
+  SRC --> EDGE --> RAW --> VAL --> GATE
+  VAL -.-> REJ
+  GATE -- "yes" --> STOP
+  GATE -- "no" --> STG --> APPLY --> P1 --> P2 --> CT
+  APPLY --> IDX
+  APPLY --> HIST
+  CT --> REC
+  IDX --> REC
+  HIST --> REC
+  REC --> LOG
+  STOP -.-> LOG
+  classDef bad fill:#fdecea,stroke:#d9534f;
+  classDef audit fill:#fff6e0,stroke:#d9a400;
+  class STOP bad
+  class REJ,REC,LOG audit

@@ -12,7 +12,17 @@ oracle and for local runs.
 
 ## Architecture at a glance
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the load path and what runs around it.
+**Load path.** Sources are converted at the edge to one canonical CSV, landed in an all-text RAW table
+(which never rejects), validated, passed through a quality gate, staged, and applied per country.
+
+![Load path](asset/01_load_path.png)
+
+**Around the load.** Redemptions, snapshot soft-delete, the daily derived refresh, identity matching
+and the offline Python-vs-Snowflake parity check.
+
+![After the load](asset/02_after_load.png)
+
+Editable diagram sources: [`asset/a_load.mmd`](asset/a_load.mmd), [`asset/b_after.mmd`](asset/b_after.mmd).
 
 ## Brief -> where it lives
 
@@ -62,6 +72,8 @@ Exit codes: `0` ok, `2` quality gate stopped the batch (nothing loaded), `3` rec
 `4` Snowflake/Python parity mismatch.
 (PowerShell: set `$env:PYTHONPATH = "src"` first and use a backtick for line breaks.)
 
+![195 tests passing](asset/03_tests_195_pass.png)
+
 ## Run it on Snowflake
 
 ```bash
@@ -70,6 +82,56 @@ python -m skypoints.snowflake_runner demo     # deploy + load samples through th
 
 Setup and credentials are in the [runbook](docs/SNOWFLAKE_RUNBOOK.md). Commands: `deploy`, `load`, `demo`,
 `parity`, `security`, `purge`; add `--serial` for single-transaction country moves.
+
+## Evidence from a real Snowflake account
+
+Verified on Snowflake Standard edition (AWS), 2026-11-23.
+
+**1. Full demo: SQL and Python agree.** The demo ran every step and printed `PARITY OK`: the SQL staged the
+same 13 rows and raised the same reject rules as the Python oracle.
+
+![Demo parity OK](asset/04_demo_parity_ok.png)
+
+**2. Data-quality warnings and rejects** from the sample data (bad date `2021-13-13`, `AU`/`PHIL`
+normalised, short IDs flagged).
+
+![Warnings 1](asset/warning_1.png)
+![Warnings 2](asset/warning_2.png)
+
+**3. A member moves country.** Day two moves Elena USA -> CAN and GLD -> PLT; she leaves the USA table.
+
+![Country move](asset/06_country_move.png)
+
+**4. History keeps both versions** (SCD2), so "what was she on Jan 15?" is answerable.
+
+![Two versions](asset/07_scd2_two_versions.png)
+
+**5. Redemptions join to the member's current country**, including earlier redemptions after the move.
+
+![Redemptions joined](asset/08_redemptions_joined.png)
+
+**6. Safety guard.** A truncated snapshot file is refused instead of mass-deleting members.
+
+![Safety guard](asset/09_safety_guard.png)
+![Safety guard, detail](asset/09_safety_guard2.png)
+
+**7. Soft delete.** A complete snapshot that omits Jacob (2256) marks him `MISSING_FROM_FEED` with
+`missing_since` 2024-01-17; the derived refresh then runs.
+
+![Soft delete](asset/10_soft_delete.png)
+![Missing from feed](asset/missing_from_feed.png)
+
+**8. Audit trail.** Run log and reconcile results for each load.
+
+![Audit trail 1](asset/11_audit_trail_1.png)
+![Audit trail 2](asset/12_audit_trail_2.png)
+
+### Not verified on Snowflake
+
+- The security layer (roles, masking, row access policies) needs Enterprise edition; the test account is
+  Standard. It is covered by offline tests only.
+- `purge`, `--serial`, key-pair login, and the `V_MEMBER_MATCH_CANDIDATES` view (created, never queried).
+- Anything at production volume: the sample is 14 rows.
 
 ## Live-demo script (about 5 minutes)
 
