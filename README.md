@@ -57,7 +57,7 @@ PYTHONPATH=src python -m skypoints \
 
 Writes to `out/`: `MEMBER_<CC>.csv` per country, `STG_REJECT.csv`, `REDEMPTION_FACT.csv`,
 `REDEMPTION_WITH_MEMBER.csv`, `MEMBER_HISTORY.csv`, and `V_MEMBER_MOVES.csv` / `V_MEMBER_MATCH_CANDIDATES.csv`
-when there is anything to report.
+when there is anything to report (empty files are skipped).
 Exit codes: `0` ok, `2` quality gate stopped the batch (nothing loaded), `3` reconcile failed,
 `4` Snowflake/Python parity mismatch.
 (PowerShell: set `$env:PYTHONPATH = "src"` first and use a backtick for line breaks.)
