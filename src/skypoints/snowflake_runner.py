@@ -391,7 +391,11 @@ def connect_from_env() -> ConnectorExecutor:
     kwargs = dict(account=os.environ["SNOWFLAKE_ACCOUNT"], user=os.environ["SNOWFLAKE_USER"])
     if os.environ.get("SNOWFLAKE_ROLE"):
         kwargs["role"] = os.environ["SNOWFLAKE_ROLE"]
-    if os.environ.get("SNOWFLAKE_AUTHENTICATOR"):        # e.g. externalbrowser (needs SSO configured)
+    if os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH"):       # key-pair login: no password, no MFA prompt
+        kwargs["private_key_file"] = os.environ["SNOWFLAKE_PRIVATE_KEY_PATH"]
+        if os.environ.get("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE"):
+            kwargs["private_key_file_pwd"] = os.environ["SNOWFLAKE_PRIVATE_KEY_PASSPHRASE"]
+    elif os.environ.get("SNOWFLAKE_AUTHENTICATOR"):        # e.g. externalbrowser (needs SSO configured)
         kwargs["authenticator"] = os.environ["SNOWFLAKE_AUTHENTICATOR"]
     else:
         kwargs["password"] = os.environ.get("SNOWFLAKE_PASSWORD", "")
@@ -426,6 +430,8 @@ def main(argv: list[str] | None = None) -> int:
     d = sub.add_parser("demo", help="deploy, load the sample data, and diff Snowflake against the Python oracle")
     d.add_argument("--sample-dir", default=str(Path(__file__).resolve().parents[2] / "sample_data"))
     d.add_argument("--golden-dir", default=str(Path(__file__).resolve().parents[2] / "tests" / "golden"))
+    d.add_argument("--serial", action="store_true",
+                   help="one session, one transaction (use when every new connection needs MFA)")
     ld = sub.add_parser("load", help="load member and/or redemption files")
     ld.add_argument("--members", nargs="*", default=[])
     ld.add_argument("--redemptions", nargs="*", default=[])
@@ -451,7 +457,7 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "purge":
             runner.purge(a.days)
         elif a.cmd == "demo":
-            report, diffs = runner.demo(Path(a.sample_dir), Path(a.golden_dir), parallel=True)
+            report, diffs = runner.demo(Path(a.sample_dir), Path(a.golden_dir), parallel=not a.serial)
             print(f"\nload {report.load_id}: raw={report.raw_rows} errors={report.error_rows} "
                   f"staged={report.staged_rows} applied={report.applied_rows}")
             if diffs:

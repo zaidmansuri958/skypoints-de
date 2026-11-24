@@ -409,6 +409,27 @@ def test_missing_credentials_give_a_clear_message(monkeypatch):
         connect_from_env()
 
 
+def test_key_pair_login_is_passed_to_the_connector_without_a_password(monkeypatch):
+    from skypoints.snowflake_runner import connect_from_env
+    seen = _fake_connector(monkeypatch)
+    monkeypatch.setenv("SNOWFLAKE_PRIVATE_KEY_PATH", "D:/keys/sf_key.p8")
+    monkeypatch.setenv("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE", "pp")
+    connect_from_env()
+    kw = seen["kwargs"][0]
+    assert kw["private_key_file"] == "D:/keys/sf_key.p8" and kw["private_key_file_pwd"] == "pp"
+    assert "password" not in kw and "authenticator" not in kw
+
+
+def test_demo_serial_uses_one_session_and_one_transaction(tmp_path):
+    r, log, sessions = runner(parallel_sessions=True)
+    r.demo(SAMPLE, GOLDEN, parallel=False)
+    assert sessions == []                                       # no extra connections were opened
+    assert log.any("^BEGIN$") and log.any("^COMMIT$")
+    r2, log2, sessions2 = runner(parallel_sessions=True)
+    r2.demo(SAMPLE, GOLDEN)
+    assert len(sessions2) == 2 * len(COUNTRIES)                 # default stays parallel
+
+
 # ------------------------------------------------------------------ the first real Snowflake run found this
 
 class RealisticFake(Fake):
