@@ -3,8 +3,12 @@
 How to run the pipeline on your Snowflake trial account, what success looks like, and what to
 do when something fails. Everything here is driven by `python -m skypoints.snowflake_runner`.
 
-> **Status:** the Python side is tested offline. The SQL has not yet been run on a real Snowflake
-> account: use `demo` to prove it (section 6 lists where behaviour could differ).
+> **Status:** the Python side is tested (195 tests). The SQL has been run end to end on a Snowflake
+> **Standard-edition** account (2026-11-23): `demo` ended with `PARITY OK`, and follow-up loads proved
+> the country move, history, redemption join, snapshot guard, soft-delete and derived refresh. The
+> first real run found three bugs in the Python runner (not the SQL), all fixed. Not run: the security
+> layer (needs Enterprise), `purge`, `--serial`, and anything at production volume. Use `demo` to prove
+> it again on any other account; section 6 lists where behaviour could differ.
 
 ## 1. One-time setup (PowerShell)
 

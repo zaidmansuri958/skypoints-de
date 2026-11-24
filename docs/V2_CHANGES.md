@@ -19,7 +19,36 @@ known remaining limit. **Open** = needs something outside this repo.
 | 8 | Rules existed twice (SQL and Python), only Python tested | **Mitigated** | `9968e44`, `6ad28f0` | One config feeds both; parsing defined once in SQL; golden files + parity query diff Snowflake against Python. Still two implementations |
 | 9 | Ingestion and operations were design only; gate not enforced | **Mostly fixed** | `0de3438`, `960b7a6` | Edge converter, PUT/COPY, ordered runner, run log, exit codes; the gate now stops the batch before staging. **Not built:** Snowpipe auto-ingest and a scheduler (the runbook says how to wire one) |
 | 10 | No security or compliance layer | **Fixed in code; residency Open** | `bb892a2` | Roles, masking, row access, grants, retention. Whether one region is lawful for every country is a legal decision (`SECURITY_AND_RESIDENCY.md`) |
-| 11 | SQL never run on Snowflake | **Open** | n/a | Offline tests only; run `demo` on an account to verify |
+| 11 | SQL never run on Snowflake | **Fixed (Standard edition)** | runner fixes after the delivery | `demo` + parity + three follow-up loads on a real account; details below |
+
+## What was run on Snowflake, and what was not
+
+Run on a Snowflake **Standard-edition** account (AWS), 2026-11-23, with `python -m skypoints.snowflake_runner`:
+
+| Check | Result |
+|---|---|
+| `demo`: deploy, PUT + COPY of the four member sources and the JSON feed, parse, validate, gate (1 of 14 rows = 7.1%), stage (13), latest-wins, parallel country merge, index + history, redemptions, reconcile | all steps OK |
+| Parity: Snowflake staging output and reject rules vs the Python oracle (golden files) | `PARITY OK`, no differences |
+| Day-two load (`GLOBAL_20240116.txt`): Elena moves USA -> CAN and GLD -> PLT | `V_MEMBER_MOVES` shows the move; `MEMBER_HISTORY` has two versions; `REDEMPTION_WITH_MEMBER` shows her redemptions in CAN |
+| Snapshot guard: a file listing 2 of 5 active members | refused ("treated as a partial file"), nobody marked missing |
+| Snapshot soft-delete (`GLOBAL_20240117.txt` omits one member) | that member is `MISSING_FROM_FEED` with `missing_since` 2024-01-17; the other four stay `ACTIVE` |
+| Derived-column refresh, as-of 2026-11-21 -> 2026-11-22 | ran without error (values not inspected: a one-day window changes almost nothing) |
+| Reconcile after every load | OK |
+
+The first real run found **three bugs in the Python runner** that the offline tests could not see, all
+fixed with tests: it asked for the `SKYPOINTS` database before it existed, parallel sessions never
+selected a warehouse, and Snowflake's `Statement executed successfully.` reply to `USE SCHEMA` was
+counted as a reconcile violation (and would have broken the parity check too). No SQL file needed a change.
+
+**Not run on Snowflake:** the security layer (roles, masking, row access, tags: needs Enterprise
+edition, and this account is Standard), the retention `purge`, `--serial` mode, key-pair login,
+`V_MEMBER_MATCH_CANDIDATES` (created at deploy, never queried), re-linking of orphaned redemptions,
+and anything at production volume (the sample is 14 rows, so no performance claim is made).
+
+Other evidence: every statement outside the security DDL parses with a Snowflake-dialect parser (test);
+the Python implementation is tested (195 tests) and defines the expected output; the runner's order,
+gate, parallel phases, rollback and guards are tested against a fake database that now answers
+non-query statements with a status row, like Snowflake does.
 
 ## Other things that changed that you should know about
 
@@ -42,3 +71,4 @@ known remaining limit. **Open** = needs something outside this repo.
 - Parallel merge sessions each authenticate, so accounts that prompt for MFA per connection need
   key-pair auth or `--serial`.
 - `age` is not masked for analysts although it narrows a date of birth to a year.
+- Verified on one Standard-edition account only; behaviour on other editions, regions or at scale is untested.
